@@ -9,12 +9,19 @@ services:
       - "8333:8333"
     volumes:
       - ./data/vertcoind:/data
-    command: -rpcuser=middleware -rpcpassword=middleware -txindex
+    command: -rpcuser=middleware -rpcpassword=middleware -txindex -testnet -addnode=jlovejoy.mit.edu -addnode=10.200.0.1
 
   vtc-middleware-cpp:
     image: vtc-wallet-middleware
     expose:
       - "8888"
     volumes:
-      - ./data/vertcoind/blocks:/blocks
+      - ./data/vertcoind/testnet3/blocks:/blocks
       - ./data/index:/tmp/testdb
+
+  reverse-proxy:
+    image: esign-reverseproxy
+    expose:
+      - "80"
+      - "443"
+
