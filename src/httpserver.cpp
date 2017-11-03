@@ -51,11 +51,11 @@ void VtcBlockIndexer::HttpServer::getTransaction(const shared_ptr<Session> sessi
         stringstream body;
         body << tx.toStyledString();
         
-        session->close(OK, body.str(), {{"Content-Length",  std::to_string(body.str().size())}});
+        session->close(OK, body.str(), {{"Content-Type","application/json"},{"Content-Length",  std::to_string(body.str().size())}});
     } catch(const jsonrpc::JsonRpcException& e) {
         const std::string message(e.what());
         cout << "Not found " << message << endl;
-        session->close(404, message, {{"Content-Length",  std::to_string(message.size())}});
+        session->close(404, message, {{"Content-Type","application/json"},{"Content-Length",  std::to_string(message.size())}});
     }
 }
 
@@ -94,7 +94,7 @@ void VtcBlockIndexer::HttpServer::addressBalance( const shared_ptr< Session > se
     stringstream body;
     body << balance;
     
-    session->close( OK, body.str(), { { "Content-Length",  std::to_string(body.str().size()) } } );
+    session->close( OK, body.str(), { {"Content-Type","text/plain"}, { "Content-Length",  std::to_string(body.str().size()) } } );
 }
 
 void VtcBlockIndexer::HttpServer::addressTxos( const shared_ptr< Session > session )
@@ -215,10 +215,10 @@ void VtcBlockIndexer::HttpServer::sendRawTransaction( const shared_ptr< Session 
         try {
             const auto txid = vertcoind->sendrawtransaction(rawtx);
             
-            session->close(OK, txid, {{"Content-Length",  std::to_string(txid.size())}});
+            session->close(OK, txid, {{"Content-Type","text/plain"}, {"Content-Length",  std::to_string(txid.size())}});
         } catch(const jsonrpc::JsonRpcException& e) {
             const std::string message(e.what());
-            session->close(400, message, {{"Content-Length",  std::to_string(message.size())}});
+            session->close(400, message, {{"Content-Type","text/plain"},{"Content-Length",  std::to_string(message.size())}});
         }
     });
 } 
