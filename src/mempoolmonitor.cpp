@@ -18,20 +18,23 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "mempoolmonitor.h"
+#include "utility.h"
 #include "scriptsolver.h"
 #include "blockchaintypes.h"
 #include <unordered_map>
 #include <chrono>
 #include <thread>
 #include <time.h>
+#include "membuf.h"
 using namespace std;
 
 // This map keeps the memorypool transactions deserialized in memory.
-unordered_map<string, VtcBlockIndexer::Transaction> mempoolTransactions;
+
 
 VtcBlockIndexer::MempoolMonitor::MempoolMonitor() {
     httpClient.reset(new jsonrpc::HttpClient("http://middleware:middleware@vertcoind:8332"));
     vertcoind.reset(new VertcoinClient(*httpClient));
+    blockReader.reset(new VtcBlockIndexer::BlockReader(""));
 }
 
 void VtcBlockIndexer::MempoolMonitor::startWatcher() {
@@ -40,7 +43,14 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
             const Json::Value mempool = vertcoind->getrawmempool();
             for ( uint index = 0; index < mempool.size(); ++index )
             {
-                cout << "Found mempool tx: " << mempool[index].asString() << endl;
+                const Json::Value rawTx = vertcoind->getrawtransaction(mempool[index].asString(), false);
+                std::vector<unsigned char> rawTxBytes = VtcBlockIndexer::Utility::hexToBytes(rawTx.asString());
+
+                memstream stream(&rawTxBytes[0], rawTxBytes.size());
+
+                VtcBlockIndexer::Transaction tx = blockReader->readTransaction(stream);
+
+                cout << "Found mempool tx: " << tx.txHash << endl;
             }
         } catch(const jsonrpc::JsonRpcException& e) {
             const std::string message(e.what());
@@ -51,3 +61,4 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
+ 
