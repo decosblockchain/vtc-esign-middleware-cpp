@@ -22,6 +22,7 @@
 #include <jsonrpccpp/client/connectors/httpclient.h>
 #include <memory>
 #include "blockreader.h"
+#include "scriptsolver.h"
 #include <unordered_map>
 #ifndef MEMPOOLMONITOR_H_INCLUDED
 #define MEMPOOLMONITOR_H_INCLUDED
@@ -46,16 +47,18 @@ public:
     /** Notify a transaction has been indexed - remove it from the mempool */
     void transactionIndexed();
 
-    /** Notify a transaction has been indexed - remove it from the mempool */
-    void outpointSpent(std::string txid, uint64_t vout);
+    /** Returns the spender txid if an outpoint is spent */
+    std::string outpointSpend(std::string txid, uint64_t vout);
 
-    /** Notify a transaction has been indexed - remove it from the mempool */
-    void getTxos(std::string address);
+    /** Returns TXOs in the memorypool matching an address */
+    vector<VtcBlockIndexer::TransactionOutput> getTxos(std::string address);
 private:
     std::unique_ptr<VertcoinClient> vertcoind;
     std::unique_ptr<jsonrpc::HttpClient> httpClient;
     unordered_map<string, VtcBlockIndexer::Transaction> mempoolTransactions;
+    unordered_map<string, std::vector<VtcBlockIndexer::TransactionOutput>> addressMempoolTransactions;
     std::unique_ptr<VtcBlockIndexer::BlockReader> blockReader;
+    std::unique_ptr<VtcBlockIndexer::ScriptSolver> scriptSolver;
 }; 
 
 }

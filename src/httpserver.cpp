@@ -34,10 +34,11 @@ using namespace restbed;
 using json = nlohmann::json;
 
 
-VtcBlockIndexer::HttpServer::HttpServer(leveldb::DB* dbInstance, string blocksDir) : blockReader("") {
+VtcBlockIndexer::HttpServer::HttpServer(leveldb::DB* dbInstance, VtcBlockIndexer::MempoolMonitor* mempoolMonitor, string blocksDir) : blockReader("") {
     this->db = dbInstance;
     this->blocksDir = blocksDir;
     this->blockReader = VtcBlockIndexer::BlockReader(blocksDir);
+    this->mempoolMonitor = mempoolMonitor;
     httpClient.reset(new jsonrpc::HttpClient("http://middleware:middleware@vertcoind:8332"));
     vertcoind.reset(new VertcoinClient(*httpClient));
 }
@@ -157,6 +158,19 @@ void VtcBlockIndexer::HttpServer::addressBalance( const shared_ptr< Session > se
 
     cout << "Analyzed " << txoCount << " TXOs - Balance is " << balance << endl;
  
+    // Add mempool transactions
+    vector<VtcBlockIndexer::TransactionOutput> mempoolOutputs = mempoolMonitor->getTxos(request->get_path_parameter( "address" ));
+    for (VtcBlockIndexer::TransactionOutput txo : mempoolOutputs) {
+        txoCount++;
+        string spender = mempoolMonitor->outpointSpend(txo.txHash, txo.index);
+        if(spender.compare("") == 0) {
+            balance += txo.value;
+        }
+    }
+
+    cout << "Including mempool: Analyzed " << txoCount << " TXOs - Balance is " << balance << endl;
+    
+
     stringstream body;
     body << balance;
     
@@ -204,6 +218,22 @@ void VtcBlockIndexer::HttpServer::addressTxos( const shared_ptr< Session > sessi
     assert(it->status().ok());  // Check for any errors found during the scan
     delete it;
 
+    // Add mempool transactions
+    vector<VtcBlockIndexer::TransactionOutput> mempoolOutputs = mempoolMonitor->getTxos(request->get_path_parameter( "address" ));
+    for (VtcBlockIndexer::TransactionOutput txo : mempoolOutputs) {
+        json txoObj;
+        txoObj["txhash"] = txo.txHash;
+        txoObj["vout"] = txo.index;
+        txoObj["value"] = txo.value;
+        txoObj["block"] = 0;
+        string spender = mempoolMonitor->outpointSpend(txo.txHash, txo.index);
+        if(spender.compare("") != 0) {
+            txoObj["spender"] = spender;
+        } else {
+            txoObj["spender"] = nullptr;
+        }
+        j.push_back(txoObj);
+    }
 
     string body = j.dump();
      
@@ -217,8 +247,9 @@ void VtcBlockIndexer::HttpServer::outpointSpend( const shared_ptr< Session > ses
     const auto request = session->get_request( );
 
     long long vout = stoll(request->get_path_parameter( "vout", "0" ));
+    string txid = request->get_path_parameter("txid", "");
     stringstream txoId;
-    txoId << "txo-" << request->get_path_parameter("txid", "") << "-" << setw(8) << setfill('0') << vout << "-spent";
+    txoId << "txo-" << txid << "-" << setw(8) << setfill('0') << vout << "-spent";
     cout << "Checking outpoint spent " << txoId.str() << endl;
     string spentTx;
     leveldb::Status s = this->db->Get(leveldb::ReadOptions(), txoId.str(), &spentTx);
@@ -226,7 +257,11 @@ void VtcBlockIndexer::HttpServer::outpointSpend( const shared_ptr< Session > ses
     if(s.ok()) {
         j["spender"] = spentTx.substr(65, 64);
     } else {
-        cout << s.ToString() << endl;
+        string mempoolSpend = mempoolMonitor->outpointSpend(txid, vout);
+        if(mempoolSpend.compare("") != 0) {
+            j["spent"] = true;
+            j["spender"] = mempoolSpend;
+        }
     }
     string body = j.dump();
      
@@ -260,6 +295,15 @@ void VtcBlockIndexer::HttpServer::outpointSpends( const shared_ptr< Session > se
                         j["vout"] = txo["vout"];
                         j["spender"] = spentTx.substr(65, 64);
                         output.push_back(j);
+                    } else {
+                        string mempoolSpend = mempoolMonitor->outpointSpend( txo["txid"].get<string>(), txo["vout"].get<int>());
+                        if(mempoolSpend.compare("") != 0) {
+                            json j;
+                            j["txid"] = txo["txid"];
+                            j["vout"] = txo["vout"];
+                            j["spender"] = mempoolSpend;
+                            output.push_back(j);
+                        }
                     }
                 }
             }

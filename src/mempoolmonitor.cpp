@@ -35,6 +35,8 @@ VtcBlockIndexer::MempoolMonitor::MempoolMonitor() {
     httpClient.reset(new jsonrpc::HttpClient("http://middleware:middleware@vertcoind:8332"));
     vertcoind.reset(new VertcoinClient(*httpClient));
     blockReader.reset(new VtcBlockIndexer::BlockReader(""));
+    scriptSolver.reset(new VtcBlockIndexer::ScriptSolver());
+    scriptSolver->testnet = true;
 }
 
 void VtcBlockIndexer::MempoolMonitor::startWatcher() {
@@ -43,22 +45,59 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
             const Json::Value mempool = vertcoind->getrawmempool();
             for ( uint index = 0; index < mempool.size(); ++index )
             {
-                const Json::Value rawTx = vertcoind->getrawtransaction(mempool[index].asString(), false);
-                std::vector<unsigned char> rawTxBytes = VtcBlockIndexer::Utility::hexToBytes(rawTx.asString());
+                if(mempoolTransactions.find(mempool[index].asString()) == mempoolTransactions.end()) {
+                    const Json::Value rawTx = vertcoind->getrawtransaction(mempool[index].asString(), false);
+                    std::vector<unsigned char> rawTxBytes = VtcBlockIndexer::Utility::hexToBytes(rawTx.asString());
 
-                memstream stream(&rawTxBytes[0], rawTxBytes.size());
+                    memstream stream(&rawTxBytes[0], rawTxBytes.size());
 
-                VtcBlockIndexer::Transaction tx = blockReader->readTransaction(stream);
+                    VtcBlockIndexer::Transaction tx = blockReader->readTransaction(stream);
+                    mempoolTransactions[mempool[index].asString()] = tx;
 
-                cout << "Found mempool tx: " << tx.txHash << endl;
+                    cout << "Analyzing mempool tx " << tx.txHash << " / " << mempool[index].asString() << " with " << tx.outputs.size() << " outputs " << endl;
+                    
+
+                    for(VtcBlockIndexer::TransactionOutput out : tx.outputs) {
+                        cout << "Analyzing txout " << out.index << endl;
+                        out.txHash = tx.txHash;
+                        vector<string> addresses = scriptSolver->getAddressesFromScript(out.script);
+                        cout << "Found " << addresses.size() << " addresses" << endl;
+                        for(string address : addresses) {
+                            cout << "Adding mempool transaction for address " << address << endl;
+                            if(addressMempoolTransactions.find(address) == addressMempoolTransactions.end())
+                            {
+                                addressMempoolTransactions[address] = {};
+                            }
+                            addressMempoolTransactions[address].push_back(out);
+                        }
+                    }
+                }
             }
         } catch(const jsonrpc::JsonRpcException& e) {
             const std::string message(e.what());
             cout << "Error reading mempool " << message << endl;
         }
         
-        
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
+
+string VtcBlockIndexer::MempoolMonitor::outpointSpend(string txid, uint64_t vout) {
+    for (auto kvp : mempoolTransactions) {
+        VtcBlockIndexer::Transaction tx = kvp.second;
+        for (VtcBlockIndexer::TransactionInput txi : tx.inputs) {
+            if(txi.txHash.compare(txid) && txi.txoIndex == vout) {
+                return tx.txHash;
+            }
+        }
+    }
+    return "";
+}
  
+vector<VtcBlockIndexer::TransactionOutput> VtcBlockIndexer::MempoolMonitor::getTxos(std::string address) {
+    if(addressMempoolTransactions.find(address) == addressMempoolTransactions.end())
+    {
+        return {};
+    } 
+    return vector<VtcBlockIndexer::TransactionOutput>(addressMempoolTransactions[address]);
+}
