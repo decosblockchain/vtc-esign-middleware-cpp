@@ -25,7 +25,7 @@
 #include <chrono>
 #include <thread>
 #include <time.h>
-#include "membuf.h"
+#include "byte_array_buffer.h"
 using namespace std;
 
 // This map keeps the memorypool transactions deserialized in memory.
@@ -36,7 +36,6 @@ VtcBlockIndexer::MempoolMonitor::MempoolMonitor() {
     vertcoind.reset(new VertcoinClient(*httpClient));
     blockReader.reset(new VtcBlockIndexer::BlockReader(""));
     scriptSolver.reset(new VtcBlockIndexer::ScriptSolver());
-    scriptSolver->testnet = true;
 }
 
 void VtcBlockIndexer::MempoolMonitor::startWatcher() {
@@ -49,21 +48,18 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
                     const Json::Value rawTx = vertcoind->getrawtransaction(mempool[index].asString(), false);
                     std::vector<unsigned char> rawTxBytes = VtcBlockIndexer::Utility::hexToBytes(rawTx.asString());
 
-                    memstream stream(&rawTxBytes[0], rawTxBytes.size());
+                    byte_array_buffer streambuf(&rawTxBytes[0], rawTxBytes.size());
+                    std::istream stream(&streambuf);
 
                     VtcBlockIndexer::Transaction tx = blockReader->readTransaction(stream);
                     mempoolTransactions[mempool[index].asString()] = tx;
 
-                    cout << "Analyzing mempool tx " << tx.txHash << " / " << mempool[index].asString() << " with " << tx.outputs.size() << " outputs " << endl;
-                    
-
+                  
                     for(VtcBlockIndexer::TransactionOutput out : tx.outputs) {
-                        cout << "Analyzing txout " << out.index << endl;
                         out.txHash = tx.txHash;
+                        scriptSolver->testnet = testnet;
                         vector<string> addresses = scriptSolver->getAddressesFromScript(out.script);
-                        cout << "Found " << addresses.size() << " addresses" << endl;
                         for(string address : addresses) {
-                            cout << "Adding mempool transaction for address " << address << endl;
                             if(addressMempoolTransactions.find(address) == addressMempoolTransactions.end())
                             {
                                 addressMempoolTransactions[address] = {};
@@ -82,11 +78,11 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
     }
 }
 
-string VtcBlockIndexer::MempoolMonitor::outpointSpend(string txid, uint64_t vout) {
+string VtcBlockIndexer::MempoolMonitor::outpointSpend(string txid, uint32_t vout) {
     for (auto kvp : mempoolTransactions) {
         VtcBlockIndexer::Transaction tx = kvp.second;
         for (VtcBlockIndexer::TransactionInput txi : tx.inputs) {
-            if(txi.txHash.compare(txid) && txi.txoIndex == vout) {
+            if(txi.txHash.compare(txid) == 0 && txi.txoIndex == vout) {
                 return tx.txHash;
             }
         }
@@ -100,4 +96,32 @@ vector<VtcBlockIndexer::TransactionOutput> VtcBlockIndexer::MempoolMonitor::getT
         return {};
     } 
     return vector<VtcBlockIndexer::TransactionOutput>(addressMempoolTransactions[address]);
+}
+
+void VtcBlockIndexer::MempoolMonitor::transactionIndexed(std::string txid) {
+    if(mempoolTransactions.find(txid) != mempoolTransactions.end()) {
+        mempoolTransactions.erase(txid);
+
+        unordered_map<string, std::vector<VtcBlockIndexer::TransactionOutput>> changedMempoolAddressTxes;
+        for (auto kvp : addressMempoolTransactions) {
+
+            vector<VtcBlockIndexer::TransactionOutput> newVector = {};
+            bool itemsRemoved = false;
+            for (VtcBlockIndexer::TransactionOutput txo : kvp.second) {
+                if(txo.txHash.compare(txid) != 0) {
+                    newVector.push_back(txo);
+                } else {
+                    itemsRemoved = true;
+                }
+            }
+
+            if(itemsRemoved) {
+                changedMempoolAddressTxes[kvp.first] = newVector;
+            }
+        }
+
+        for (auto kvp : changedMempoolAddressTxes) {
+            addressMempoolTransactions[kvp.first] = kvp.second;
+        }
+    }
 }

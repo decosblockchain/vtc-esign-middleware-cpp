@@ -45,13 +45,15 @@ public:
     void startWatcher();
 
     /** Notify a transaction has been indexed - remove it from the mempool */
-    void transactionIndexed();
+    void transactionIndexed(std::string txid);
 
     /** Returns the spender txid if an outpoint is spent */
-    std::string outpointSpend(std::string txid, uint64_t vout);
+    std::string outpointSpend(std::string txid, uint32_t vout);
 
     /** Returns TXOs in the memorypool matching an address */
     vector<VtcBlockIndexer::TransactionOutput> getTxos(std::string address);
+
+    bool testnet;
 private:
     std::unique_ptr<VertcoinClient> vertcoind;
     std::unique_ptr<jsonrpc::HttpClient> httpClient;

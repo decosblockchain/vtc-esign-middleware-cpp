@@ -43,12 +43,12 @@ using namespace std;
 
 leveldb::DB *db;
 VtcBlockIndexer::HttpServer httpServer(nullptr,nullptr,"");
-VtcBlockIndexer::BlockFileWatcher blockFileWatcher("",nullptr);
+VtcBlockIndexer::BlockFileWatcher blockFileWatcher("",nullptr, nullptr);
 VtcBlockIndexer::MempoolMonitor mempoolMonitor;
 
 void runBlockfileWatcher(string blocksDir) {
     cout << "Starting blockfile watcher..." << endl;
-    blockFileWatcher = VtcBlockIndexer::BlockFileWatcher(blocksDir, db);
+    blockFileWatcher = VtcBlockIndexer::BlockFileWatcher(blocksDir, db, &mempoolMonitor);
     blockFileWatcher.startWatcher();
 }
 

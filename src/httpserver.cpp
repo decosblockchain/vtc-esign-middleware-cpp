@@ -150,7 +150,11 @@ void VtcBlockIndexer::HttpServer::addressBalance( const shared_ptr< Session > se
         leveldb::Status s = this->db->Get(leveldb::ReadOptions(), "txo-" + txo.substr(0,64) + "-" + txo.substr(64,8) + "-spent", &spentTx);
         if(!s.ok()) // no key found, not spent. Add balance.
         {
-            balance += stoll(txo.substr(80));
+            // check mempool for spenders
+            string spender = mempoolMonitor->outpointSpend(txo.substr(0,64), stol(txo.substr(64,8)));
+            if(spender.compare("") == 0) {
+                balance += stoll(txo.substr(80));
+            }
         }
     }
     assert(it->status().ok());  // Check for any errors found during the scan
@@ -163,6 +167,7 @@ void VtcBlockIndexer::HttpServer::addressBalance( const shared_ptr< Session > se
     for (VtcBlockIndexer::TransactionOutput txo : mempoolOutputs) {
         txoCount++;
         string spender = mempoolMonitor->outpointSpend(txo.txHash, txo.index);
+        cout << "Spender for " << txo.txHash << "/" << txo.index << " = " << spender;
         if(spender.compare("") == 0) {
             balance += txo.value;
         }
@@ -208,7 +213,13 @@ void VtcBlockIndexer::HttpServer::addressTxos( const shared_ptr< Session > sessi
             txoObj["block"] = block;
             txoObj["value"] = stoll(txo.substr(80));
             if(!s.ok()) {
-                txoObj["spender"] = nullptr;
+                string spender = mempoolMonitor->outpointSpend(txo.substr(0,64), stol(txo.substr(64,8)));
+                if(spender.compare("") == 0) {
+                    txoObj["spender"] = nullptr;
+                } else {
+                    txoObj["spender"] = spender;
+                }
+               
             } else {
                 txoObj["spender"] = spentTx.substr(65, 64);
             }
