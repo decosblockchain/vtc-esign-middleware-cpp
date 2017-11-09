@@ -382,6 +382,39 @@ void VtcBlockIndexer::HttpServer::outpointSpends( const shared_ptr< Session > se
     } );
 } 
 
+
+
+
+void VtcBlockIndexer::HttpServer::eSignatureTransactions( const shared_ptr< Session > session )
+{
+    const auto request = session->get_request( );
+    json output = json::array();
+    string dir = request->get_path_parameter("dir", "");
+    string address = request->get_path_parameter("addr", "");
+    
+    string start("esign-" + dir + "-" + address + "-00000001");
+    string limit("esign-" + dir + "-" + address + "-99999999");
+    
+   
+    leveldb::Iterator* it = this->db->NewIterator(leveldb::ReadOptions());
+    
+    for (it->Seek(start);
+            it->Valid() && it->key().ToString() < limit;
+            it->Next()) {
+        string data = it->value().ToString();
+        json j;
+        j["address"] = data.substr(0,34);
+        j["txid"] = data.substr(34,64);
+        j["height"] = stoll(data.substr(98,12));
+        j["time"] = stoll(data.substr(110,12));
+        output.push_back(j);
+
+    }
+
+    string resultBody = output.dump();
+    session->close( OK, resultBody, { { "Content-Type",  "application/json" }, { "Content-Length",  std::to_string(resultBody.size()) } } );
+} 
+
 void VtcBlockIndexer::HttpServer::sendRawTransaction( const shared_ptr< Session > session )
 {
     const auto request = session->get_request( );
@@ -435,6 +468,10 @@ void VtcBlockIndexer::HttpServer::run()
     sendRawTransactionResource->set_path( "/sendRawTransaction" );
     sendRawTransactionResource->set_method_handler("POST", bind(&VtcBlockIndexer::HttpServer::sendRawTransaction, this, std::placeholders::_1) );
 
+    auto eSignatureTransactionsResource = make_shared<Resource>();
+    eSignatureTransactionsResource->set_path( "/esignatureTransactions/{dir: .*}/{addr: .*}" );
+    eSignatureTransactionsResource->set_method_handler("GET", bind(&VtcBlockIndexer::HttpServer::eSignatureTransactions, this, std::placeholders::_1) );
+
     auto settings = make_shared< Settings >( );
     settings->set_port( 8888 );
     settings->set_default_header( "Connection", "close" );
@@ -448,5 +485,6 @@ void VtcBlockIndexer::HttpServer::run()
     service.publish( outpointSpendResource );
     service.publish( outpointSpendsResource );
     service.publish( sendRawTransactionResource );
+    service.publish( eSignatureTransactionsResource );
     service.start( settings );
 }

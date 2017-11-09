@@ -1,7 +1,7 @@
 version: "2"
 services:
 
-  vertcoind:
+  vtc-esign-vertcoind:
     image: lukechilds/vertcoind
     expose:
       - "8332"
@@ -11,17 +11,33 @@ services:
       - ./data/vertcoind:/data
     command: -rpcuser=middleware -rpcpassword=middleware -txindex -testnet -addnode=jlovejoy.mit.edu -addnode=10.200.0.1
 
-  vtc-middleware-cpp:
-    image: vtc-wallet-middleware
+  vtc-esign-middleware:
+    image: vtc-esign-middleware
+    depends_on:
+      - "vtc-esign-vertcoind"
+    environment:
+      - VERTCOIND_HOST=vtc-esign-vertcoind
     expose:
       - "8888"
     volumes:
       - ./data/vertcoind/testnet3/blocks:/blocks
-      - ./data/index:/tmp/testdb
+      - ./data/index:/index
 
-  reverse-proxy:
-    image: esign-reverseproxy
+  vtc-esign-proxy:
+    image: vtc-esign-proxy
+    depends_on:
+      - "vtc-esign-middleware"
+      - "vtc-esign-frontend"
     expose:
       - "80"
       - "443"
 
+  vtc-esign-frontend:
+    image: vtc-esign-frontend
+    expose:
+      - "80"
+
+networks:
+  default:
+    external:
+      name: vtc-esignature

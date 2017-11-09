@@ -22,7 +22,7 @@
 #include "blockchaintypes.h"
 #include <iostream>
 #include <sstream>
-
+#include "utility.h"
 //#include "hashing.h"
 #include <memory>
 #include <iomanip>
@@ -142,7 +142,14 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
     
     int txIndex = -1;
     // TODO: Verify block integrity
+
+    indexSignatureTransactions(block);
+
+    
     for(VtcBlockIndexer::Transaction tx : block.transactions) {
+        
+
+
         txIndex++;
         stringstream blockTxKey;
         blockTxKey << "block-" << block.blockHash << "-tx-" << setw(8) << setfill('0') << txIndex;
@@ -169,6 +176,11 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
                 stringstream txoValue;
                 txoValue << tx.txHash << setw(8) << setfill('0') << out.index << setw(8) << setfill('0') << block.height << out.value;
                 this->db->Put(leveldb::WriteOptions(), txoKey.str(), txoValue.str());
+
+                stringstream txoAddrKey;
+                txoAddrKey << tx.txHash << setw(8) << setfill('0') << out.index;
+                this->db->Put(leveldb::WriteOptions(), txoAddrKey.str(), address);
+                
 
                 nextIndex = getNextTxoIndex(block.blockHash + "-txo");
                 stringstream blockTxoKey;
@@ -200,5 +212,44 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
 
 
     return true;
+}
+
+void VtcBlockIndexer::BlockIndexer::indexSignatureTransactions(Block block) {
+    for(VtcBlockIndexer::Transaction tx : block.transactions) {
+        if(tx.outputs.size() == 4) {
+            if(tx.outputs.at(1).value == 100 && tx.outputs.at(2).value == 0 && tx.outputs.at(2).script.at(0) == 0x6A) {
+                vector<string> addresses = this->scriptSolver.getAddressesFromScript(tx.outputs.at(3).script);
+                if(addresses.size() == 1 && addresses.at(0) == "WxVSkmSUCUXFsnTRVdy5s2jtXXiwdjg75P") {
+                    // This is a signature TX. Find out the "from" address.
+                    stringstream txoAddrKey;
+                    txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
+                    string address;
+                    leveldb::Status s = this->db->Get(leveldb::ReadOptions(), txoAddrKey.str(), &address);
+                    if(s.ok()) {
+                        vector<string> docAddresses = this->scriptSolver.getAddressesFromScript(tx.outputs.at(1).script);
+                        if(docAddresses.size() == 1) {
+                            cout << "Found eSign transaction!" << endl;
+                            int nextIndex = getNextTxoIndex("esign-out-" + address);
+                            stringstream esignOutKey;
+                            esignOutKey << "esign-out-" << address << "-" << setw(8) << setfill('0') << nextIndex;
+                            stringstream esignOutValue;
+                            esignOutValue << docAddresses.at(0) << tx.txHash << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.outputs.at(2).script);
+                            this->db->Put(leveldb::WriteOptions(), esignOutKey.str(), esignOutValue.str());
+                            cout << "Writing key [" << esignOutKey.str() << "]" << endl;
+                            
+                            nextIndex = getNextTxoIndex("esign-in-" + docAddresses.at(0));
+                            stringstream esignInKey;
+                            esignInKey << "esign-in-" << docAddresses.at(0) << "-" << setw(8) << setfill('0') << nextIndex;
+                            stringstream esignInValue;
+                            esignInValue << address << tx.txHash << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.outputs.at(2).script);
+                            this->db->Put(leveldb::WriteOptions(), esignInKey.str(), esignInValue.str());
+                            cout << "Writing key [" << esignInKey.str() << "]" << endl;
+
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
