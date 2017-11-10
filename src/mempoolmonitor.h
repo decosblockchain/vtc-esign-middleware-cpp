@@ -55,6 +55,8 @@ public:
     /** Returns TXOs in the memorypool matching an address */
     std::vector<VtcBlockIndexer::TransactionOutput> getTxos(std::string address);
 
+    string getTxoAddress(string txid, uint32_t vout);
+
     std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsFrom(std::string address);
     std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsTo(std::string address);
     

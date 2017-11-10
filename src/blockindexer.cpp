@@ -240,7 +240,7 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
 }
 
 void VtcBlockIndexer::BlockIndexer::indexSignatureTransactions(Block block) {
-    vector<EsignatureTransaction> esignTransactions = VtcBlockIndexer::Utility::parseEsignatureTransactions(block, this->db, &this->scriptSolver);
+    vector<EsignatureTransaction> esignTransactions = VtcBlockIndexer::Utility::parseEsignatureTransactions(block, this->db, &this->scriptSolver, this->mempoolMonitor);
     for(VtcBlockIndexer::EsignatureTransaction tx : esignTransactions) {
 
         cout << "Found eSign transaction!" << endl;

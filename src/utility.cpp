@@ -190,7 +190,7 @@ vector<unsigned char> VtcBlockIndexer::Utility::bech32Address(vector<unsigned ch
     }
 }
 
-vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEsignatureTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver) {
+vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEsignatureTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver, VtcBlockIndexer::MempoolMonitor* mempoolMonitor) {
 
     vector<VtcBlockIndexer::EsignatureTransaction> returnValue = {};
     for(VtcBlockIndexer::Transaction tx : block.transactions) {
@@ -207,7 +207,14 @@ vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEs
                     txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
                     string address;
                     leveldb::Status s = db->Get(leveldb::ReadOptions(), txoAddrKey.str(), &address);
-                    if(s.ok()) {
+                    bool ok = s.ok();
+                    if(!ok) {
+                        address = mempoolMonitor->getTxoAddress(tx.inputs.at(0).txHash,  tx.inputs.at(0).txoIndex);
+                        if(address.compare("") != 0) {
+                            ok = true;
+                        }
+                    }
+                    if(ok) {
                         vector<string> docAddresses = scriptSolver->getAddressesFromScript(tx.outputs.at(1).script);
                         if(docAddresses.size() == 1) {
                             EsignatureTransaction trans;

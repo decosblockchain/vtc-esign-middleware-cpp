@@ -63,7 +63,7 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
                     virtualBlock.transactions.push_back(tx);
                     virtualBlock.height = 0;
                     virtualBlock.time = 0;
-                    vector<EsignatureTransaction> esignTxes = VtcBlockIndexer::Utility::parseEsignatureTransactions(virtualBlock, db, scriptSolver.get() );
+                    vector<EsignatureTransaction> esignTxes = VtcBlockIndexer::Utility::parseEsignatureTransactions(virtualBlock, db, scriptSolver.get(), this );
                     for(EsignatureTransaction estx : esignTxes) {
                         cout << "Found mempool eSign transaction!" << endl;
                         
@@ -110,6 +110,19 @@ vector<VtcBlockIndexer::TransactionOutput> VtcBlockIndexer::MempoolMonitor::getT
         return {};
     } 
     return vector<VtcBlockIndexer::TransactionOutput>(addressMempoolTransactions[address]);
+}
+
+string VtcBlockIndexer::MempoolMonitor::getTxoAddress(string txid, uint32_t vout) {
+    for (auto kvp : mempoolTransactions) {
+        VtcBlockIndexer::Transaction tx = kvp.second;
+        for (VtcBlockIndexer::TransactionOutput txo : tx.outputs) {
+            if(tx.txHash.compare(txid) == 0 && txo.index == vout) {
+                vector<string> addresses = scriptSolver->getAddressesFromScript(txo.script);
+                if(addresses.size() > 0) return addresses.at(0);
+            }
+        }
+    }
+    return "";
 }
 
 vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::MempoolMonitor::getEsignTransactionsFrom(std::string address) {

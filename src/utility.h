@@ -24,6 +24,7 @@
 #include "leveldb/db.h"
 #include "leveldb/write_batch.h"
 #include "scriptsolver.h"
+#include "mempoolmonitor.h"
 namespace VtcBlockIndexer {
     
     /**
@@ -47,7 +48,7 @@ namespace VtcBlockIndexer {
             static std::vector<unsigned char> ripeMD160ToP2SHAddress(std::vector<unsigned char> ripeMD, bool testnet);
             static std::vector<unsigned char> bech32Address(std::vector<unsigned char> in, bool testnet);
             static std::vector<unsigned char> hexToBytes(std::string hex);
-            static std::vector<VtcBlockIndexer::EsignatureTransaction> parseEsignatureTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver);
+            static std::vector<VtcBlockIndexer::EsignatureTransaction> parseEsignatureTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver, VtcBlockIndexer::MempoolMonitor* mempoolMonitor);
             ~Utility();
             
         private:

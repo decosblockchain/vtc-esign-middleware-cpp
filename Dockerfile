@@ -1,4 +1,4 @@
-FROM vtc-wallet-middleware-base
+FROM vtc-esign-middleware-base
 
 ADD src /root/sources/vtc-wallet-middleware-cpp/src
 ADD Makefile /root/sources/vtc-wallet-middleware-cpp/Makefile
