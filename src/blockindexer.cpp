@@ -215,41 +215,24 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
 }
 
 void VtcBlockIndexer::BlockIndexer::indexSignatureTransactions(Block block) {
-    for(VtcBlockIndexer::Transaction tx : block.transactions) {
-        if(tx.outputs.size() == 4) {
-            if(tx.outputs.at(1).value == 100 && tx.outputs.at(2).value == 0 && tx.outputs.at(2).script.at(0) == 0x6A) {
-                vector<string> addresses = this->scriptSolver.getAddressesFromScript(tx.outputs.at(3).script);
-                if(addresses.size() == 1 && addresses.at(0) == "WxVSkmSUCUXFsnTRVdy5s2jtXXiwdjg75P") {
-                    // This is a signature TX. Find out the "from" address.
-                    stringstream txoAddrKey;
-                    txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
-                    string address;
-                    leveldb::Status s = this->db->Get(leveldb::ReadOptions(), txoAddrKey.str(), &address);
-                    if(s.ok()) {
-                        vector<string> docAddresses = this->scriptSolver.getAddressesFromScript(tx.outputs.at(1).script);
-                        if(docAddresses.size() == 1) {
-                            cout << "Found eSign transaction!" << endl;
-                            int nextIndex = getNextTxoIndex("esign-out-" + address);
-                            stringstream esignOutKey;
-                            esignOutKey << "esign-out-" << address << "-" << setw(8) << setfill('0') << nextIndex;
-                            stringstream esignOutValue;
-                            esignOutValue << docAddresses.at(0) << tx.txHash << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.outputs.at(2).script);
-                            this->db->Put(leveldb::WriteOptions(), esignOutKey.str(), esignOutValue.str());
-                            cout << "Writing key [" << esignOutKey.str() << "]" << endl;
-                            
-                            nextIndex = getNextTxoIndex("esign-in-" + docAddresses.at(0));
-                            stringstream esignInKey;
-                            esignInKey << "esign-in-" << docAddresses.at(0) << "-" << setw(8) << setfill('0') << nextIndex;
-                            stringstream esignInValue;
-                            esignInValue << address << tx.txHash << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.outputs.at(2).script);
-                            this->db->Put(leveldb::WriteOptions(), esignInKey.str(), esignInValue.str());
-                            cout << "Writing key [" << esignInKey.str() << "]" << endl;
+    vector<EsignatureTransaction> esignTransactions = VtcBlockIndexer::Utility::parseEsignatureTransactions(block, this->db, &this->scriptSolver);
+    for(VtcBlockIndexer::EsignatureTransaction tx : esignTransactions) {
 
-                        }
-                    }
-                }
-            }
-        }
+        cout << "Found eSign transaction!" << endl;
+        int nextIndex = getNextTxoIndex("esign-out-" + tx.fromAddress);
+        stringstream esignOutKey;
+        esignOutKey << "esign-out-" << tx.fromAddress << "-" << setw(8) << setfill('0') << nextIndex;
+        stringstream esignOutValue;
+        esignOutValue << tx.toAddress << tx.txId << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.script);
+        this->db->Put(leveldb::WriteOptions(), esignOutKey.str(), esignOutValue.str());
+        
+        nextIndex = getNextTxoIndex("esign-in-" + tx.toAddress);
+        stringstream esignInKey;
+        esignInKey << "esign-in-" << tx.toAddress << "-" << setw(8) << setfill('0') << nextIndex;
+        stringstream esignInValue;
+        esignInValue << tx.fromAddress << tx.txId << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.script);
+        this->db->Put(leveldb::WriteOptions(), esignInKey.str(), esignInValue.str());
+        
     }
 }
 

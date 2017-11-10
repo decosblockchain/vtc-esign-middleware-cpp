@@ -407,8 +407,29 @@ void VtcBlockIndexer::HttpServer::eSignatureTransactions( const shared_ptr< Sess
         j["txid"] = data.substr(34,64);
         j["height"] = stoll(data.substr(98,12));
         j["time"] = stoll(data.substr(110,12));
+        j["script"] = data.substr(122);
         output.push_back(j);
 
+    }
+
+    vector<EsignatureTransaction> mempoolTransactions = {};
+    if(dir.compare("in") == 0) { 
+        mempoolTransactions = this->mempoolMonitor->getEsignTransactionsTo(address);
+    } else {
+        mempoolTransactions = this->mempoolMonitor->getEsignTransactionsFrom(address);
+    }
+    for(EsignatureTransaction tx : mempoolTransactions) {
+        json j;
+        if(dir.compare("in") == 0) { 
+            j["address"] = tx.fromAddress;
+        } else {
+            j["address"] = tx.toAddress;
+        }
+        j["txid"] = tx.txId;
+        j["height"] = tx.height;
+        j["time"] = tx.time;
+        j["script"] = VtcBlockIndexer::Utility::hashToHex(tx.script);
+        output.push_back(j);
     }
 
     string resultBody = output.dump();

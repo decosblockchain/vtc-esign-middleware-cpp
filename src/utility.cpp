@@ -30,6 +30,7 @@
 #include "crypto/base58.h"
 #include "crypto/bech32.h"
 
+
 using namespace std;
 
 namespace
@@ -187,4 +188,43 @@ vector<unsigned char> VtcBlockIndexer::Utility::bech32Address(vector<unsigned ch
     else{
         return {};
     }
+}
+
+vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEsignatureTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver) {
+
+    vector<VtcBlockIndexer::EsignatureTransaction> returnValue = {};
+    for(VtcBlockIndexer::Transaction tx : block.transactions) {
+        if(tx.outputs.size() == 4) {
+            cout << "TX has 4 outputs: " << tx.txHash << endl;
+            if(tx.outputs.at(1).value == 100 && tx.outputs.at(2).value == 0 && tx.outputs.at(2).script.at(0) == 0x6A) {
+                cout << "TX matches values and nulldata: " << tx.txHash << endl;
+                vector<string> addresses = scriptSolver->getAddressesFromScript(tx.outputs.at(3).script);
+                cout << "TX third output has " << addresses.size() << " addresses and the first is " << addresses.at(0) << endl;
+                if(addresses.size() == 1 && addresses.at(0).compare("WxVSkmSUCUXFsnTRVdy5s2jtXXiwdjg75P") == 0) {
+                    cout << "TX is esignature TX: " << tx.txHash << endl;
+                    // This is a signature TX. Find out the "from" address.
+                    stringstream txoAddrKey;
+                    txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
+                    string address;
+                    leveldb::Status s = db->Get(leveldb::ReadOptions(), txoAddrKey.str(), &address);
+                    if(s.ok()) {
+                        vector<string> docAddresses = scriptSolver->getAddressesFromScript(tx.outputs.at(1).script);
+                        if(docAddresses.size() == 1) {
+                            EsignatureTransaction trans;
+                            trans.fromAddress = address;
+                            trans.toAddress = docAddresses.at(0);
+                            trans.script = tx.outputs.at(2).script;
+                            trans.txId = tx.txHash;
+                            trans.time = block.time;
+                            trans.height = block.height;
+                            returnValue.push_back(trans);
+                        }
+                    } else {
+                        cout << "TXO not found in esignature TX" << endl;
+                    }
+                }
+            }
+        }
+    }
+    return returnValue;
 }

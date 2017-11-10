@@ -23,6 +23,8 @@
 #include <memory>
 #include "blockreader.h"
 #include "scriptsolver.h"
+#include "leveldb/db.h"
+#include "leveldb/write_batch.h"
 #include <unordered_map>
 #ifndef MEMPOOLMONITOR_H_INCLUDED
 #define MEMPOOLMONITOR_H_INCLUDED
@@ -39,7 +41,7 @@ class MempoolMonitor {
 public:
     /** Constructs a MempoolMonitor instance
      */
-    MempoolMonitor();
+    MempoolMonitor(leveldb::DB* dbInstance);
 
     /** Starts watching the mempool for new transactions */
     void startWatcher();
@@ -51,12 +53,17 @@ public:
     std::string outpointSpend(std::string txid, uint32_t vout);
 
     /** Returns TXOs in the memorypool matching an address */
-    vector<VtcBlockIndexer::TransactionOutput> getTxos(std::string address);
+    std::vector<VtcBlockIndexer::TransactionOutput> getTxos(std::string address);
 
+    std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsFrom(std::string address);
+    std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsTo(std::string address);
+    
     bool testnet;
 private:
+    leveldb::DB* db;
     std::unique_ptr<VertcoinClient> vertcoind;
     std::unique_ptr<jsonrpc::HttpClient> httpClient;
+    std::vector <VtcBlockIndexer::EsignatureTransaction> mempoolEsignTransactions;
     unordered_map<string, VtcBlockIndexer::Transaction> mempoolTransactions;
     unordered_map<string, std::vector<VtcBlockIndexer::TransactionOutput>> addressMempoolTransactions;
     std::unique_ptr<VtcBlockIndexer::BlockReader> blockReader;

@@ -40,11 +40,11 @@
 
 using namespace std;
 
-
+bool testnet = false;
 leveldb::DB *db;
 VtcBlockIndexer::HttpServer httpServer(nullptr,nullptr,"");
 VtcBlockIndexer::BlockFileWatcher blockFileWatcher("",nullptr, nullptr);
-VtcBlockIndexer::MempoolMonitor mempoolMonitor;
+VtcBlockIndexer::MempoolMonitor mempoolMonitor(nullptr);
 
 void runBlockfileWatcher(string blocksDir) {
     cout << "Starting blockfile watcher..." << endl;
@@ -54,6 +54,8 @@ void runBlockfileWatcher(string blocksDir) {
 
 void runMempoolMonitor() {
     cout << "Starting mempool monitor..." << endl;
+    mempoolMonitor = VtcBlockIndexer::MempoolMonitor(db);
+    mempoolMonitor.testnet = testnet;
     mempoolMonitor.startWatcher();
 }
 
@@ -61,8 +63,14 @@ void runMempoolMonitor() {
 int main(int argc, char* argv[]) {
      // If user did not supply the command line parameter, show the usage and exit.
      if(argc < 2) {
-        cerr << "Usage: vtc_indexer [blocks_dir]" << endl;
+        cerr << "Usage: vtc_indexer [blocks_dir] {-testnet}" << endl;
         exit(0);
+    }
+
+    if(argc > 2) {
+       if(string(argv[2]).compare("-testnet") == 0) {
+            testnet = true;
+       } 
     }
 
     leveldb::Options options;

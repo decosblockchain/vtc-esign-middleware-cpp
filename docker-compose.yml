@@ -22,6 +22,7 @@ services:
     volumes:
       - ./data/vertcoind/testnet3/blocks:/blocks
       - ./data/index:/index
+    command: /blocks -testnet
 
   vtc-esign-proxy:
     image: vtc-esign-proxy
