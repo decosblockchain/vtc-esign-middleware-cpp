@@ -517,6 +517,47 @@ void VtcBlockIndexer::HttpServer::eSignatureTransactions( const shared_ptr< Sess
     session->close( OK, resultBody, { { "Content-Type",  "application/json" }, { "Content-Length",  std::to_string(resultBody.size()) } } );
 } 
 
+void VtcBlockIndexer::HttpServer::identityTransactions( const shared_ptr< Session > session )
+{
+    const auto request = session->get_request( );
+    json output = json::array();
+    string address = request->get_path_parameter("addr", "");
+    
+    string start("ident-" + address + "-00000001");
+    string limit("ident-" + address + "-99999999");
+    
+    leveldb::Iterator* it = this->db->NewIterator(leveldb::ReadOptions());
+    
+    for (it->Seek(start);
+            it->Valid() && it->key().ToString() < limit;
+            it->Next()) {
+        string data = it->value().ToString();
+        json j;
+        j["address"] = data.substr(0,34);
+        j["txid"] = data.substr(34,64);
+        j["height"] = stoll(data.substr(98,12));
+        j["time"] = stoll(data.substr(110,12));
+        j["script"] = data.substr(122);
+        output.push_back(j);
+
+    }
+
+    vector<IdentityTransaction> mempoolTransactions = this->mempoolMonitor->getIdentityTransactions(address);
+    
+    for(IdentityTransaction tx : mempoolTransactions) {
+        json j;
+        j["address"] = tx.fromAddress;
+        j["txid"] = tx.txId;
+        j["height"] = tx.height;
+        j["time"] = tx.time;
+        j["script"] = VtcBlockIndexer::Utility::hashToHex(tx.script);
+        output.push_back(j);
+    }
+
+    string resultBody = output.dump();
+    session->close( OK, resultBody, { { "Content-Type",  "application/json" }, { "Content-Length",  std::to_string(resultBody.size()) } } );
+} 
+
 void VtcBlockIndexer::HttpServer::sendRawTransaction( const shared_ptr< Session > session )
 {
     const auto request = session->get_request( );
@@ -574,6 +615,12 @@ void VtcBlockIndexer::HttpServer::run()
     eSignatureTransactionsResource->set_path( "/esignatureTransactions/{dir: .*}/{addr: .*}" );
     eSignatureTransactionsResource->set_method_handler("GET", bind(&VtcBlockIndexer::HttpServer::eSignatureTransactions, this, std::placeholders::_1) );
    
+    auto identityTransactionsResource = make_shared<Resource>();
+    identityTransactionsResource->set_path( "/identityTransactions/{addr: .*}" );
+    identityTransactionsResource->set_method_handler("GET", bind(&VtcBlockIndexer::HttpServer::identityTransactions, this, std::placeholders::_1) );
+   
+
+
     auto blocksResource = make_shared<Resource>();
     blocksResource->set_path( "/blocks" );
     blocksResource->set_method_handler("GET", bind(&VtcBlockIndexer::HttpServer::getBlocks, this, std::placeholders::_1) );
@@ -597,6 +644,7 @@ void VtcBlockIndexer::HttpServer::run()
     service.publish( outpointSpendsResource );
     service.publish( sendRawTransactionResource );
     service.publish( eSignatureTransactionsResource );
+    service.publish( identityTransactionsResource );
     service.publish( blocksResource );
     service.publish( syncResource );
     service.start( settings );

@@ -160,5 +160,14 @@ struct EsignatureTransaction {
     vector<unsigned char> script;
 };
 
+struct IdentityTransaction {
+    string fromAddress;
+    string toAddress;
+    string txId;
+    uint64_t height;
+    uint32_t time;
+    vector<unsigned char> script;
+};
+
 }
 #endif // BLOCKCHAINTYPES_H_INCLUDED

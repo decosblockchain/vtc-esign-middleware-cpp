@@ -195,13 +195,9 @@ vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEs
     vector<VtcBlockIndexer::EsignatureTransaction> returnValue = {};
     for(VtcBlockIndexer::Transaction tx : block.transactions) {
         if(tx.outputs.size() == 4) {
-            cout << "TX has 4 outputs: " << tx.txHash << endl;
             if(tx.outputs.at(1).value == 100 && tx.outputs.at(2).value == 0 && tx.outputs.at(2).script.at(0) == 0x6A) {
-                cout << "TX matches values and nulldata: " << tx.txHash << endl;
                 vector<string> addresses = scriptSolver->getAddressesFromScript(tx.outputs.at(3).script);
-                cout << "TX third output has " << addresses.size() << " addresses and the first is " << addresses.at(0) << endl;
                 if(addresses.size() == 1 && addresses.at(0).compare("WxVSkmSUCUXFsnTRVdy5s2jtXXiwdjg75P") == 0) {
-                    cout << "TX is esignature TX: " << tx.txHash << endl;
                     // This is a signature TX. Find out the "from" address.
                     stringstream txoAddrKey;
                     txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
@@ -229,6 +225,54 @@ vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::Utility::parseEs
                     } else {
                         cout << "TXO not found in esignature TX" << endl;
                     }
+                }
+            }
+        }
+    }
+    return returnValue;
+}
+
+
+vector<VtcBlockIndexer::IdentityTransaction> VtcBlockIndexer::Utility::parseIdentityTransactions(VtcBlockIndexer::Block block,leveldb::DB* db, VtcBlockIndexer::ScriptSolver* scriptSolver, VtcBlockIndexer::MempoolMonitor* mempoolMonitor) {
+    vector<VtcBlockIndexer::IdentityTransaction> returnValue = {};
+    for(VtcBlockIndexer::Transaction tx : block.transactions) {
+        if(tx.outputs.size() == 4) {
+            if(tx.outputs.at(1).value == 100 && 
+            tx.outputs.at(2).value == 0 && 
+            tx.outputs.at(2).script.at(0) == 0x6A && 
+            tx.outputs.at(2).script.at(1) == 0x04 && 
+            tx.outputs.at(2).script.at(2) == 0x49 && 
+            tx.outputs.at(2).script.at(3) == 0x44 && 
+            tx.outputs.at(2).script.at(4) == 0x45 && 
+            tx.outputs.at(2).script.at(5) == 0x4e && 
+            tx.outputs.at(3).value == 0 && 
+            tx.outputs.at(3).script.at(0) == 0x6A) {
+                // This is an identity TX. Find out the "from" address.
+                stringstream txoAddrKey;
+                txoAddrKey << tx.inputs.at(0).txHash << setw(8) << setfill('0') << tx.inputs.at(0).txoIndex;
+                string address;
+                leveldb::Status s = db->Get(leveldb::ReadOptions(), txoAddrKey.str(), &address);
+                bool ok = s.ok();
+                if(!ok) {
+                    address = mempoolMonitor->getTxoAddress(tx.inputs.at(0).txHash,  tx.inputs.at(0).txoIndex);
+                    if(address.compare("") != 0) {
+                        ok = true;
+                    }
+                }
+                if(ok) {
+                    vector<string> personAddress = scriptSolver->getAddressesFromScript(tx.outputs.at(1).script);
+                    if(personAddress.size() == 1) {
+                        IdentityTransaction trans;
+                        trans.fromAddress = address;
+                        trans.toAddress = personAddress.at(0);
+                        trans.script = tx.outputs.at(3).script;
+                        trans.txId = tx.txHash;
+                        trans.time = block.time;
+                        trans.height = block.height;
+                        returnValue.push_back(trans);
+                    }
+                } else {
+                    cout << "TXO not found in esignature TX" << endl;
                 }
             }
         }

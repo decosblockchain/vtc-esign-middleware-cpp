@@ -38,6 +38,7 @@ VtcBlockIndexer::MempoolMonitor::MempoolMonitor(leveldb::DB* dbInstance) {
     blockReader.reset(new VtcBlockIndexer::BlockReader(""));
     scriptSolver.reset(new VtcBlockIndexer::ScriptSolver());
     mempoolEsignTransactions = {};
+    mempoolIdentityTransactions = {};
 }
 
 void VtcBlockIndexer::MempoolMonitor::startWatcher() {
@@ -68,6 +69,13 @@ void VtcBlockIndexer::MempoolMonitor::startWatcher() {
                         cout << "Found mempool eSign transaction!" << endl;
                         
                         mempoolEsignTransactions.push_back(estx);
+                    }
+
+                    vector<IdentityTransaction> identityTxes = VtcBlockIndexer::Utility::parseIdentityTransactions(virtualBlock, db, scriptSolver.get(), this );
+                     for(IdentityTransaction idtx : identityTxes) {
+                        cout << "Found mempool identity transaction!" << endl;
+                        
+                        mempoolIdentityTransactions.push_back(idtx);
                     }
                   
                     for(VtcBlockIndexer::TransactionOutput out : tx.outputs) {
@@ -145,6 +153,15 @@ vector<VtcBlockIndexer::EsignatureTransaction> VtcBlockIndexer::MempoolMonitor::
     return newVector; 
 }
     
+vector<VtcBlockIndexer::IdentityTransaction> VtcBlockIndexer::MempoolMonitor::getIdentityTransactions(std::string address) {
+    vector<IdentityTransaction> newVector = {};
+    for(IdentityTransaction tx : mempoolIdentityTransactions) {
+        if(tx.toAddress.compare(address) == 0) { 
+            newVector.push_back(tx);
+        }
+    }
+    return newVector; 
+}
     
 
 void VtcBlockIndexer::MempoolMonitor::transactionIndexed(std::string txid) {

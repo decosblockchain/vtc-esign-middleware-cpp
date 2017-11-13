@@ -56,6 +56,7 @@ public:
     bool hasIndexedBlock(std::string blockHash, int blockHeight);
 
     void indexSignatureTransactions(Block block);
+    void indexIdentityTransactions(Block block);
 private:
     /** Removes TXOs and spends from a particular blockhash 
      * in case of a reorg */

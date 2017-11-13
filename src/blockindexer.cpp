@@ -169,7 +169,7 @@ bool VtcBlockIndexer::BlockIndexer::indexBlock(Block block) {
     // TODO: Verify block integrity
 
     indexSignatureTransactions(block);
-
+    indexIdentityTransactions(block);
     
     for(VtcBlockIndexer::Transaction tx : block.transactions) {
         
@@ -260,4 +260,21 @@ void VtcBlockIndexer::BlockIndexer::indexSignatureTransactions(Block block) {
         
     }
 }
+
+void VtcBlockIndexer::BlockIndexer::indexIdentityTransactions(Block block) {
+    vector<IdentityTransaction> identityTransactions = VtcBlockIndexer::Utility::parseIdentityTransactions(block, this->db, &this->scriptSolver, this->mempoolMonitor);
+    for(VtcBlockIndexer::IdentityTransaction tx : identityTransactions) {
+
+        cout << "Found identity transaction!" << endl;
+
+        int nextIndex = getNextTxoIndex("ident-" + tx.toAddress);
+        stringstream identKey;
+        identKey << "ident-" << tx.toAddress << "-" << setw(8) << setfill('0') << nextIndex;
+        stringstream identValue;
+        identValue << tx.fromAddress << tx.txId << setw(12) << setfill('0') << block.height << setw(12) << setfill('0') << block.time << VtcBlockIndexer::Utility::hashToHex(tx.script);
+        this->db->Put(leveldb::WriteOptions(), identKey.str(), identValue.str());
+        
+    }
+}
+
 

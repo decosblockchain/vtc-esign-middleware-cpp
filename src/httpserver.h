@@ -66,6 +66,7 @@ namespace VtcBlockIndexer {
             void outpointSpends( const shared_ptr< Session > session );
            
             void eSignatureTransactions( const shared_ptr< Session > session );
+            void identityTransactions( const shared_ptr< Session > session );
             
             /* REST Api for returning list of blocks */
             void getBlocks( const shared_ptr< Session > session );

@@ -59,6 +59,7 @@ public:
 
     std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsFrom(std::string address);
     std::vector<VtcBlockIndexer::EsignatureTransaction> getEsignTransactionsTo(std::string address);
+    std::vector<VtcBlockIndexer::IdentityTransaction> getIdentityTransactions(std::string address);
     
     bool testnet;
 private:
@@ -66,6 +67,7 @@ private:
     std::unique_ptr<VertcoinClient> vertcoind;
     std::unique_ptr<jsonrpc::HttpClient> httpClient;
     std::vector <VtcBlockIndexer::EsignatureTransaction> mempoolEsignTransactions;
+    std::vector <VtcBlockIndexer::IdentityTransaction> mempoolIdentityTransactions;
     unordered_map<string, VtcBlockIndexer::Transaction> mempoolTransactions;
     unordered_map<string, std::vector<VtcBlockIndexer::TransactionOutput>> addressMempoolTransactions;
     std::unique_ptr<VtcBlockIndexer::BlockReader> blockReader;
